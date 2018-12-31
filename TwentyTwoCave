@@ -1,0 +1,237 @@
+import java.awt.Point;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
+
+
+public class TwentyTwoCave {
+
+	static class Option{
+		TOOL toolUsed ;
+		int shortestPathToHere ;
+		Point shortestFrom = null ;
+		
+		@Override
+		public String toString() {
+			return "(tool=" + toolUsed + ", path="
+					+ shortestPathToHere + ")";
+		}
+	}
+	
+	enum TOOL {
+		CLIMBING,
+		TORCH,
+		NONE
+	}
+	
+	public static void main(String[] args) {
+
+		List<TOOL> toolsForRock = new ArrayList<TOOL>() ;
+		toolsForRock.add(TOOL.CLIMBING) ;
+		toolsForRock.add(TOOL.TORCH) ;
+		List<TOOL> toolsForWet = new ArrayList<TOOL>() ;
+		toolsForWet.add(TOOL.CLIMBING) ;
+		toolsForWet.add(TOOL.NONE) ;
+		List<TOOL> toolsForNarrow = new ArrayList<TOOL>() ;
+		toolsForNarrow.add(TOOL.TORCH);
+		toolsForNarrow.add(TOOL.NONE);
+		
+		HashMap<Integer, List<TOOL>> availableTools = new HashMap<Integer, List<TOOL>>() ;
+		availableTools.put(0, toolsForRock) ;
+		availableTools.put(1, toolsForWet) ;
+		availableTools.put(2, toolsForNarrow) ;
+		
+		
+		int depth =  8112 ;
+		int xtarget = 13 ;
+		int ytarget = 743 ;
+		int extraCells = 50 ;
+//		int depth =  510 ;
+//		int xtarget = 10 ;
+//		int ytarget = 10 ;
+//		int extraCells = 6 ;
+
+		int[][] grid = new int[ytarget+extraCells][xtarget+extraCells] ;
+		
+		//init ... 
+		double[][] erosion = new double[ytarget+extraCells][xtarget+extraCells] ;
+		double[][] geologic = new double[ytarget+extraCells][xtarget+extraCells] ;
+		int[][] risk = new int[ytarget+extraCells][xtarget+extraCells] ;
+		
+		geologic[0][0] = 0 ;
+		//init first row 
+		for(int i = 0 ; i < grid[0].length ; i++){
+			geologic[0][i] = i * 16807 ;
+			erosion[0][i] = (geologic[0][i] + depth) % 20183 ;
+			risk[0][i] = (int) (erosion[0][i]%3) ;
+		}
+		//init first column
+		for(int i = 0 ; i < grid.length ; i++){
+			geologic[i][0] = i * 48271 ;
+			erosion[i][0] = (geologic[i][0] + depth) % 20183 ;
+			risk[i][0] = (int) (erosion[i][0]%3) ;
+		}
+				
+		for(int y = 1 ; y < grid.length ; y++){
+			for(int x = 1 ; x < grid[0].length ; x++){
+				if(x == xtarget && y == ytarget){
+					geologic[ytarget][xtarget] = 0 ;
+				}else{
+					geologic[y][x] = erosion[y-1][x] * erosion[y][x-1] ;					
+				}
+				erosion[y][x] = (geologic[y][x] + depth) % 20183 ;
+				risk[y][x] =  ((int)erosion[y][x] % 3) ;
+			}
+		}
+
+
+		double totalRisk = 0 ;
+		char[] array = {'.', '=', '|'} ;
+		//calculate risk
+		for(int y = 0 ; y <= ytarget ; y++){
+			for(int x = 0 ; x <= xtarget ; x++){
+				totalRisk = totalRisk + risk[y][x] ;
+			}
+		}
+		System.out.println(totalRisk);
+
+		List<StringBuffer> map = new ArrayList<StringBuffer>() ;
+		for(int y = 0 ; y < risk.length ; y++){
+			map.add(new StringBuffer()) ;
+			for(int x = 0 ; x < risk[0].length ; x++){
+				map.get(y).append(array[risk[y][x]]) ;
+				if(x == xtarget && y == ytarget){
+					map.get(y).setCharAt(x, 'T');
+				}
+			}
+		}
+		
+		//print the map
+		for(StringBuffer sb : map){
+			System.out.println(sb);
+		}
+		
+
+		
+		// part 2 .... calculate shortest path ... 
+		Option[][][] options = new Option[ytarget+extraCells][xtarget+extraCells][2] ;
+
+		//init cell 0,0
+		options[0][0][0] = new Option() ;
+		options[0][0][0].toolUsed = TOOL.TORCH;
+		options[0][0][0].shortestPathToHere = 0 ;
+
+		//run until stable 
+		for(int i = 0 ; i < 200 ; i++){
+			calculateOptions(xtarget, ytarget, options, risk, availableTools);
+		}
+
+
+//		StringBuffer sb = new StringBuffer() ;
+//		int length = 52 ;
+//		for(int row = 0 ; row < options.length ; row++){
+//			for(int column = 0 ; column < options[0].length ; column++){
+//				sb = new StringBuffer("[" + options[row][column][0] + " , " + options[row][column][1] + "]");
+//				if(sb.length() < length){
+//					for(int i = sb.length() ; i < length ; i++){
+//						sb.append(" ") ;
+//					}
+//				}
+//				System.out.print(sb);
+//			}
+//			System.out.print("\n");
+//		}
+		
+
+		System.out.println("\n----------------------------------------------------------------------------\n");
+		//print path
+		Queue<Option> pathOptions = new LinkedList<Option>() ;
+		pathOptions.add(options[ytarget][xtarget][0]) ;
+		while(!pathOptions.isEmpty()){
+			Point p = pathOptions.poll().shortestFrom ;
+			if(p != null){
+				Option min = options[p.y][p.x][0] ;
+				if(options[p.y][p.x][1] != null && options[p.y][p.x][1].shortestPathToHere < options[p.y][p.x][0].shortestPathToHere){
+					min = options[p.y][p.x][1] ;
+				}
+				map.get(p.y).setCharAt(p.x, 'X');
+				pathOptions.add(min) ;
+			}
+		}
+		
+		for(StringBuffer sb : map){
+			System.out.println(sb);
+		}
+		
+		System.out.println(options[ytarget][xtarget][0].shortestPathToHere);
+	}
+	
+	public static void calculateOptionsForCell(int row, int column, Option[][][] options, List<TOOL> availableTools){
+		if(options[row][column][0] == null){
+			for(int i = 0 ; i < availableTools.size() ; i++){
+				options[row][column][i] = new Option() ;
+				options[row][column][i].toolUsed = availableTools.get(i);
+				options[row][column][i].shortestPathToHere = Integer.MAX_VALUE ;				
+			}
+		}
+		
+		// up
+		if(row > 0){
+			getShortestPathFromCell(row-1, column, row, column, options);
+		}
+		
+		//left
+		if(column > 0){
+			getShortestPathFromCell(row, column-1, row, column, options);
+		}
+		
+		//right
+		if(column < options[0].length-1){
+			getShortestPathFromCell(row, column+1, row, column, options);
+		}
+		
+		//down
+		if(row < options.length-1){
+			getShortestPathFromCell(row+1, column, row, column, options);
+		}
+	}
+	
+	public static void getShortestPathFromCell(int row, int column, int currentRow, int currentColumn, Option[][][] options){
+		Option[] previousOptions = options[row][column];
+		if(previousOptions[0] != null){
+			for(Option previousOption : previousOptions){
+				for(Option currentOption : options[currentRow][currentColumn]){
+					if(currentOption != null && previousOption != null){
+						if(currentOption.toolUsed.equals(previousOption.toolUsed)){
+							if(previousOption.shortestPathToHere+1 < currentOption.shortestPathToHere){
+								currentOption.shortestPathToHere = previousOption.shortestPathToHere+1 ;
+								currentOption.shortestFrom = new Point(column, row) ;
+							}
+						}else{
+							if(previousOption.shortestPathToHere+8 < currentOption.shortestPathToHere){
+								currentOption.shortestPathToHere = previousOption.shortestPathToHere+8 ;
+								currentOption.shortestFrom = new Point(column, row) ;
+							}
+						}						
+					}
+				}
+			}
+		}
+	}
+	
+	public static void calculateOptions(int xtarget, int ytarget, Option[][][] options, int[][] risk, HashMap<Integer, List<TOOL>> availableTools){
+		for(int row = 0 ; row < options.length ; row++){
+			for(int column = 0 ; column < options[0].length ; column++){
+				if(row == ytarget && column == xtarget){
+					List<TOOL> targetTorch = new ArrayList<TOOL>() ;
+					targetTorch.add(TOOL.TORCH) ;
+					calculateOptionsForCell(row, column, options, targetTorch);
+				}else{
+					calculateOptionsForCell(row, column, options, availableTools.get(risk[row][column]));					
+				}
+			}
+		}
+	}
+}
